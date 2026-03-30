@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Photo Face Run - Wide Game Screen</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f2f5;
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            overflow: hidden;
+        }
+
+        /* 🎮 게임 컨테이너 */
+        .game-container {
+            display: flex;
+            gap: 40px;
+            align-items: flex-start;
+        }
+
+        /* 💡 게임 화면 너비 900px로 확장 */
+        canvas {
+            width: 900px;
+            height: 400px;
+            background-color: #fff;
+            border-bottom: 4px solid #535353;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+        }
+
+        /* 🏆 리더보드 너비 200px 유지 */
+        #side-leaderboard {
+            width: 200px;
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e1e4e8;
+        }
+
+        #side-leaderboard h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            text-align: center;
+            color: #1a1a1a;
+            border-bottom: 2px solid #f0f2f5;
+            padding-bottom: 12px;
+        }
+
+        .rank-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .rank-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f2f5;
+            font-size: 14px;
+        }
+
+        .rank-item:last-child {
+            border-bottom: none;
+        }
+
+        .rank-num {
+            font-weight: 800;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 6px;
+            background: #f0f2f5;
+            margin-right: 10px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .rank-1 .rank-num {
+            background: #FFD700;
+            color: #fff;
+        }
+
+        .rank-2 .rank-num {
+            background: #C0C0C0;
+            color: #fff;
+        }
+
+        .rank-3 .rank-num {
+            background: #CD7F32;
+            color: #fff;
+        }
+
+        .user-info {
+            flex-grow: 1;
+            font-weight: 500;
+            color: #333;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .user-score {
+            font-weight: 700;
+            color: #ff4d4d;
+        }
+
+        .instructions {
+            position: absolute;
+            bottom: 30px;
+            color: #888;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        #loading {
+            position: absolute;
+            font-size: 24px;
+            color: #535353;
+        }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, push, set, onValue, query, orderByChild, limitToLast } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyD6I2CMZrN2p_dm7ecfEhmR54vFeGvT15Y",
+            authDomain: "face-rungame-jh.firebaseapp.com",
+            databaseURL: "https://face-rungame-jh-default-rtdb.firebaseio.com",
+            projectId: "face-rungame-jh",
+            storageBucket: "face-rungame-jh.firebasestorage.app",
+            messagingSenderId: "448464153725",
+            appId: "1:448464153725:web:b5d64fc284d0461716d514"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        window.saveGlobalScore = function (userName, score) {
+            const scoreRef = ref(db, 'scores');
+            const newScoreRef = push(scoreRef);
+            set(newScoreRef, { name: userName, score: score, timestamp: Date.now() });
+        };
+
+        const rankListElement = document.getElementById('rank-list');
+        const scoreRef = ref(db, 'scores');
+        const topScoresQuery = query(scoreRef, orderByChild('score'), limitToLast(5));
+
+        onValue(topScoresQuery, (snapshot) => {
+            const data = snapshot.val();
+            let scoreList = [];
+            for (let id in data) { scoreList.push(data[id]); }
+            scoreList.sort((a, b) => b.score - a.score);
+            window.globalScores = scoreList;
+
+            rankListElement.innerHTML = scoreList.map((s, i) => `
+                <li class="rank-item rank-${i + 1}">
+                    <div class="rank-num">${i + 1}</div>
+                    <div class="user-info">${s.name}</div>
+                    <div class="user-score">${s.score.toLocaleString()}</div>
+                </li>
+            `).join('');
+        });
+    </script>
+</head>
+
+<body>
+    <div id="loading">이미지 로딩 중...</div>
+
+    <div class="game-container">
+        <canvas id="gameCanvas" style="display:none;"></canvas>
+
+        <div id="side-leaderboard">
+            <h3>🏆 Realtime Rank</h3>
+            <ul class="rank-list" id="rank-list"></ul>
+        </div>
+    </div>
+
+    <div class="instructions" style="display:none;">
+        <strong>스페이스바</strong>: 2단 점프 / <strong>동전</strong>을 먹어보세요!
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const loadingDiv = document.getElementById('loading');
+        const instructionsDiv = document.querySelector('.instructions');
+
+        // 💡 내부 해상도 900px로 변경
+        canvas.width = 900;
+        canvas.height = 400;
+
+        const runnerImg = new Image();
+        runnerImg.src = 'images/main.jpeg';
+
+        let isImgLoaded = false;
+        runnerImg.onload = () => {
+            isImgLoaded = true;
+            loadingDiv.style.display = 'none';
+            instructionsDiv.style.display = 'block';
+            canvas.style.display = 'block';
+            initGame();
+        };
+
+        let score, gameSpeed, isGameOver, animationId, obstacleTimer, coinTimer;
+        let obstacles = [], coins = [];
+        let dialogue = { text: "", timer: 0, opacity: 0 };
+
+        const runner = {
+            x: 50, y: 350, width: 50, height: 50,
+            dy: 0, jumpForce: 12, gravity: 0.6,
+            grounded: false, jumpCount: 0
+        };
+
+        function initGame() {
+            score = 0; gameSpeed = 5; isGameOver = false;
+            obstacleTimer = 0; coinTimer = 0;
+            obstacles = []; coins = [];
+            dialogue.timer = 0;
+            runner.y = canvas.height - runner.height;
+            runner.dy = 0; runner.grounded = true; runner.jumpCount = 0;
+            if (animationId) cancelAnimationFrame(animationId);
+            animate();
+        }
+
+        function showDialogue(txt) {
+            dialogue.text = txt;
+            dialogue.timer = 90;
+            dialogue.opacity = 1;
+        }
+
+        function update() {
+            if (isGameOver) return;
+            runner.dy += runner.gravity;
+            runner.y += runner.dy;
+            if (runner.y + runner.height >= canvas.height) {
+                runner.y = canvas.height - runner.height;
+                runner.dy = 0; runner.grounded = true; runner.jumpCount = 0;
+            } else { runner.grounded = false; }
+
+            obstacleTimer++;
+            if (obstacleTimer % 100 === 0) {
+                obstacles.push({ x: canvas.width, y: canvas.height - 40, width: 20, height: 40 });
+                obstacleTimer = 0;
+            }
+            obstacles.forEach((ob, i) => {
+                ob.x -= gameSpeed;
+                if (runner.x + 8 < ob.x + ob.width && runner.x + runner.width - 8 > ob.x &&
+                    runner.y + 8 < ob.y + ob.height && runner.y + runner.height - 8 > ob.y) {
+                    gameOver();
+                }
+                if (ob.x + ob.width < 0) { obstacles.splice(i, 1); score++; }
+            });
+
+            coinTimer++;
+            if (coinTimer % 150 === 0) {
+                // 💡 화면이 넓어졌으므로 코인 생성 위치 랜덤 폭 확대
+                coins.push({ x: canvas.width, y: canvas.height - (Math.random() * 150 + 60), radius: 10 });
+                coinTimer = 0;
+            }
+            coins.forEach((coin, i) => {
+                coin.x -= gameSpeed;
+                let dx = (runner.x + runner.width / 2) - coin.x;
+                let dy = (runner.y + runner.height / 2) - coin.y;
+                if (Math.sqrt(dx * dx + dy * dy) < runner.width / 2 + coin.radius) {
+                    coins.splice(i, 1);
+                    score += 5;
+                    showDialogue("뭐가 좋다고 쳐웃고다녀","개새끼들..");
+                }
+            });
+
+            if (dialogue.timer > 0) {
+                dialogue.timer--;
+                if (dialogue.timer < 20) dialogue.opacity -= 0.05;
+            }
+            gameSpeed += 0.001;
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(`SCORE: ${score.toLocaleString()}`, 25, 35);
+
+            ctx.drawImage(runnerImg, runner.x, runner.y, runner.width, runner.height);
+
+            if (dialogue.timer > 0) {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, dialogue.opacity);
+                ctx.font = "bold 13px Arial";
+                const textWidth = ctx.measureText(dialogue.text).width;
+                const bx = runner.x + runner.width / 2 - (textWidth + 20) / 2;
+                const by = runner.y - 45;
+                ctx.fillStyle = "white"; ctx.strokeStyle = "#333"; ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.roundRect(bx, by, textWidth + 20, 30, 10); ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(runner.x + runner.width / 2 - 5, by + 30); ctx.lineTo(runner.x + runner.width / 2 + 5, by + 30); ctx.lineTo(runner.x + runner.width / 2, by + 37); ctx.fill(); ctx.stroke();
+                ctx.fillStyle = "black"; ctx.textAlign = "center"; ctx.fillText(dialogue.text, runner.x + runner.width / 2, by + 20);
+                ctx.restore();
+            }
+
+            ctx.fillStyle = '#ff4d4d';
+            obstacles.forEach(ob => ctx.fillRect(ob.x, ob.y, ob.width, ob.height));
+            ctx.fillStyle = '#FFD700';
+            coins.forEach(coin => {
+                ctx.beginPath(); ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.strokeStyle = '#b8860b'; ctx.stroke();
+            });
+        }
+
+        function animate() {
+            update();
+            draw();
+            if (!isGameOver) animationId = requestAnimationFrame(animate);
+        }
+
+        function gameOver() {
+            isGameOver = true;
+            const userName = prompt("게임 오버! 이름을 입력하세요:", "플레이어");
+            if (userName) { window.saveGlobalScore(userName, score); }
+            setTimeout(drawEndScreen, 500);
+        }
+
+        function drawEndScreen() {
+            ctx.fillStyle = 'rgba(0,0,0,0.85)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#FFD700'; ctx.textAlign = 'center'; ctx.font = 'bold 30px Arial';
+            ctx.fillText('🏆 GLOBAL RANKING', canvas.width / 2, 80);
+            ctx.fillStyle = 'white'; ctx.font = '18px Arial';
+            (window.globalScores || []).forEach((s, i) => {
+                ctx.textAlign = 'left'; ctx.fillText(`${i + 1}. ${s.name}`, canvas.width / 2 - 140, 140 + (i * 35));
+                ctx.textAlign = 'right'; ctx.fillText(`${s.score.toLocaleString()} pts`, canvas.width / 2 + 140, 140 + (i * 35));
+            });
+            ctx.textAlign = 'center'; ctx.font = '14px Arial';
+            ctx.fillText('Press SPACE to Restart', canvas.width / 2, canvas.height - 40);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isGameOver) initGame();
+                else if (runner.jumpCount < 2) {
+                    runner.dy = -runner.jumpForce;
+                    runner.jumpCount++;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -233,11 +233,10 @@
             animate();
         }
 
-        function showDialogue(txt) {
-            dialogue.lines = ["뭐가 좋다고 쳐웃고다녀", "개새끼들.."];
-            dialogue.timer = 90;
-            dialogue.opacity = 1;
-        }
+    function showDialogue() {
+        dialogue.timer = 120; // 두 줄이라 읽는 시간을 고려해 조금 더 길게(약 2초) 설정
+        dialogue.opacity = 1;
+    }
 
         function update() {
             if (isGameOver) return;
@@ -298,14 +297,47 @@
             if (dialogue.timer > 0) {
                 ctx.save();
                 ctx.globalAlpha = Math.max(0, dialogue.opacity);
-                ctx.font = "bold 13px Arial";
-                const textWidth = ctx.measureText(dialogue.text).width;
-                const bx = runner.x + runner.width / 2 - (textWidth + 20) / 2;
-                const by = runner.y - 45;
-                ctx.fillStyle = "white"; ctx.strokeStyle = "#333"; ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.roundRect(bx, by, textWidth + 20, 30, 10); ctx.fill(); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(runner.x + runner.width / 2 - 5, by + 30); ctx.lineTo(runner.x + runner.width / 2 + 5, by + 30); ctx.lineTo(runner.x + runner.width / 2, by + 37); ctx.fill(); ctx.stroke();
-                ctx.fillStyle = "black"; ctx.textAlign = "center"; ctx.fillText(dialogue.text, runner.x + runner.width / 2, by + 20);
+                ctx.font = "bold 13px Pretendard, Arial";
+
+                const line1 = "뭐가 좋다고 쳐웃고다녀";
+                const line2 = "개새끼들..";
+
+                // 두 문장 중 긴 쪽을 기준으로 말풍선 너비 계산
+                const w1 = ctx.measureText(line1).width;
+                const w2 = ctx.measureText(line2).width;
+                const maxWidth = Math.max(w1, w2);
+
+                const padding = 20;
+                const lineHeight = 18; // 줄 간격
+                const bubbleWidth = maxWidth + padding;
+                const bubbleHeight = 45; // 두 줄이므로 높이를 키움
+
+                const bx = runner.x + runner.width / 2 - bubbleWidth / 2;
+                const by = runner.y - 60; // 높이가 높아진 만큼 위로 조정
+
+                // 말풍선 배경
+                ctx.fillStyle = "white";
+                ctx.strokeStyle = "#333";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(bx, by, bubbleWidth, bubbleHeight, 10);
+                ctx.fill();
+                ctx.stroke();
+
+                // 말풍선 꼬리
+                ctx.beginPath();
+                ctx.moveTo(runner.x + runner.width / 2 - 5, by + bubbleHeight);
+                ctx.lineTo(runner.x + runner.width / 2 + 5, by + bubbleHeight);
+                ctx.lineTo(runner.x + runner.width / 2, by + bubbleHeight + 7);
+                ctx.fill();
+                ctx.stroke();
+
+                // 텍스트 출력 (두 줄)
+                ctx.fillStyle = "black";
+                ctx.textAlign = "center";
+                ctx.fillText(line1, runner.x + runner.width / 2, by + 20);
+                ctx.fillText(line2, runner.x + runner.width / 2, by + 20 + lineHeight);
+
                 ctx.restore();
             }
 
